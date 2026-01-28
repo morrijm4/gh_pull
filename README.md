@@ -2,6 +2,9 @@
 
 ## Dependencies
 
+Must supply a GitHub personal access token through the environment variable
+`GITHUB_TOKEN`. Optionally, you can supply through a `.env` file.
+
 - python >= 3.9
 
 ## Usage
