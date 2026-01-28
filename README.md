@@ -1,6 +1,6 @@
 # gh_pull
 
-## Requirements
+## Dependencies
 
 - python >= 3.9
 
