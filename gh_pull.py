@@ -1,8 +1,8 @@
 import os
-import time
 import sys
 import json
 import base64
+from collections import defaultdict
 from pathlib import Path
 from urllib import request
 
@@ -18,48 +18,24 @@ def load_dotenv():
 
 
 def parse_args() -> dict:
-    args = {}
+    args = defaultdict(list)
 
     for arg in sys.argv:
-        if arg[:2] == "--":
-            key, *value = arg[2:].split("=")
-        else:
+        if arg[:2] != "--":
             continue
 
-        args[key] = "".join(value) if len(value) > 0 else None
+        key, *value = arg[2:].split("=")
+        args[key].append("".join(value) if len(value) > 0 else None)
+
+    for k, v in args.items():
+        if len(v) == 1:
+            args[k] = v[0]
 
     return args
 
 
-def make_request(req):
-    retries = 0
-    while retries < 3:
-        try:
-            with request.urlopen(req) as res:
-                return json.loads(res.read().decode())
-        except request.HTTPError as e:
-            if e.code == 429 and "Retry-After" in e.headers:
-                sleepFor = int(e.headers["Retry-After"])
-                print(f"Sleeping for {sleepFor}")
-                time.sleep(sleepFor)
-            elif (
-                e.code == 403
-                and e.reason == "rate limit exceeded"
-                and e.headers["X-RateLimit-Remaining"] == "0"
-            ):
-                sleepFor = int(e.headers["X-RateLimit-Reset"]) - time.time()
-                print(f"Sleeping for {sleepFor}")
-                if sleepFor >= 0:
-                    time.sleep(sleepFor)
-                else:
-                    raise e
-        except Exception as e:
-            raise e
-
-        retries += 1
-
-    print(f"Failed to make request after {retries}")
-    raise RuntimeError
+def stringify_query_params(qp: dict) -> str:
+    return "&".join([f"{k}={v}" for k, v in qp.items()])
 
 
 def main():
@@ -74,10 +50,17 @@ def main():
     args = parse_args()
 
     if "query" not in args or args["query"] is None:
-        return print("No query provided with the -q=<QUERY> flag")
+        return print("No query provided with the --query=<QUERY> flag")
 
-    # _mm512_add_ph+language:c
-    url = "https://api.github.com/search/code?q=" + args["query"]
+    queryParams = {
+        "q": "+".join(args["query"])
+        if isinstance(args["query"], list)
+        else args["query"],
+        "page": int(args["page"]) if "page" in args else 1,
+        "per_page": int(args["per_page"]) if "per_page" in args else 30,
+    }
+
+    url = "https://api.github.com/search/code?" + stringify_query_params(queryParams)
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
@@ -88,28 +71,31 @@ def main():
 
     items = None
     with request.urlopen(req) as res:
-        body = json.loads(res.read().decode())
-        items = body["items"]
+        searchBody = json.loads(res.read().decode())
+        items = searchBody["items"]
 
     if items is None:
         return print("Code not found")
 
     mode = "output" if "outDir" in args else "interactive"
 
-    for item in items:
-        body = make_request(item["git_url"])
+    for i, item in enumerate(items):
+        with request.urlopen(item["git_url"]) as res:
+            codeBody = json.loads(res.read().decode())
 
-        if body["encoding"] != "base64":
-            print(f"Unknown encoding {body['encoding']}")
+        if codeBody["encoding"] != "base64":
+            print(f"Unknown encoding {codeBody['encoding']}")
 
-        code = base64.b64decode(body["content"]).decode()
+        code = base64.b64decode(codeBody["content"]).decode()
+        totalCount = searchBody["total_count"]
+        currentItem = (i + 1) + (queryParams["page"] - 1) * queryParams["per_page"]
         repoName = item["repository"]["full_name"]
         filePath = item["path"]
         link = item["html_url"]
 
         if mode == "output":
             if "outDir" not in args:
-                return print("Must supply a directory path with -o=<DIR_PATH>")
+                return print("Must supply a directory path with --outDir=<DIR_PATH>")
 
             if args["outDir"][-1] != "/":
                 args["outDir"] += "/"
@@ -120,8 +106,11 @@ def main():
 
             with open(outputFile, "w") as file:
                 file.write(code)
+            print("Total count", totalCount)
         else:
             print(code)
+            print("Total count", totalCount)
+            print("Current item", currentItem)
             print("Repository:", repoName)
             print("File path:", filePath)
             print("Link:", link)
