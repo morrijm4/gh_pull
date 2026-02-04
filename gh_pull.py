@@ -79,6 +79,15 @@ def main():
 
     mode = "output" if "outDir" in args else "interactive"
 
+    totalCount = searchBody["total_count"]
+    start = (queryParams["page"] - 1) * queryParams["per_page"]
+    end = start + queryParams["per_page"]
+    print("Total count:", totalCount)
+    print(f"Quering items {start}..{end}")
+
+    if mode == "interactive":
+        input("Press ENTER to continue...")
+
     for i, item in enumerate(items):
         with request.urlopen(item["git_url"]) as res:
             codeBody = json.loads(res.read().decode())
@@ -87,8 +96,7 @@ def main():
             print(f"Unknown encoding {codeBody['encoding']}")
 
         code = base64.b64decode(codeBody["content"]).decode()
-        totalCount = searchBody["total_count"]
-        currentItem = (i + 1) + (queryParams["page"] - 1) * queryParams["per_page"]
+        currentItem = (i + 1) + start
         repoName = item["repository"]["full_name"]
         filePath = item["path"]
         link = item["html_url"]
@@ -106,15 +114,13 @@ def main():
 
             with open(outputFile, "w") as file:
                 file.write(code)
-            print("Total count", totalCount)
-        else:
+        elif mode == "interactive":
             print(code)
-            print("Total count", totalCount)
             print("Current item", currentItem)
             print("Repository:", repoName)
             print("File path:", filePath)
             print("Link:", link)
-            input()
+            input("Press ENTER to continue...")
 
 
 if __name__ == "__main__":
