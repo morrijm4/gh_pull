@@ -1,87 +1,35 @@
-import os
-import sys
-import json
 import base64
-from collections import defaultdict
 from pathlib import Path
-from urllib import request
 
-
-def load_dotenv():
-    try:
-        with open(".env", "r") as file:
-            for line in file:
-                key, *value = line.split("=")
-                os.environ[key] = "".join(value).removesuffix("\n")
-    except Exception:
-        pass
-
-
-def parse_args() -> dict:
-    args = defaultdict(list)
-
-    for arg in sys.argv:
-        if arg[:2] != "--":
-            continue
-
-        key, *value = arg[2:].split("=")
-        args[key].append("".join(value) if len(value) > 0 else None)
-
-    for k, v in args.items():
-        if len(v) == 1:
-            args[k] = v[0]
-
-    return args
-
-
-def stringify_query_params(qp: dict) -> str:
-    return "&".join([f"{k}={v}" for k, v in qp.items()])
+from modules import load_dotenv
+from modules.argument_parser import ArgumentParser
+from clients.http import HTTPClient
+from clients.github import GitHubClient
 
 
 def main():
     load_dotenv()
+    args = ArgumentParser().parse()
+    github_client = GitHubClient()
+    http_client = HTTPClient()
 
-    TOKEN = "GITHUB_TOKEN"
-    bearer = os.getenv(TOKEN)
+    if args.bad():
+        return print(args.err())
+    else:
+        args = args.unwrap()
 
-    if bearer is None:
-        return print(f"{TOKEN} is not set")
-
-    args = parse_args()
-
-    if "query" not in args or args["query"] is None:
-        return print("No query provided with the --query=<QUERY> flag")
-
-    queryParams = {
-        "q": "+".join(args["query"])
-        if isinstance(args["query"], list)
-        else args["query"],
-        "page": int(args["page"]) if "page" in args else 1,
-        "per_page": int(args["per_page"]) if "per_page" in args else 30,
-    }
-
-    url = "https://api.github.com/search/code?" + stringify_query_params(queryParams)
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "Authorization": f"Bearer {bearer}",
-    }
-
-    req = request.Request(url, headers=headers)
-
-    items = None
-    with request.urlopen(req) as res:
-        searchBody = json.loads(res.read().decode())
-        items = searchBody["items"]
+    searchBody = github_client.code_search(args.query, args.page, args.per_page)
+    items = searchBody["items"]
 
     if items is None:
         return print("Code not found")
 
-    mode = "output" if "outDir" in args else "interactive"
+    mode = "output" if args.out_dir else "interactive"
 
     totalCount = searchBody["total_count"]
-    start = (queryParams["page"] - 1) * queryParams["per_page"]
-    end = start + queryParams["per_page"]
+    start = (args.page - 1) * args.per_page
+    end = start + args.per_page
+
     print("Total count:", totalCount)
     print(f"Quering items {start}..{end}")
 
@@ -89,26 +37,34 @@ def main():
         input("Press ENTER to continue...")
 
     for i, item in enumerate(items):
-        with request.urlopen(item["git_url"]) as res:
-            codeBody = json.loads(res.read().decode())
-
-        if codeBody["encoding"] != "base64":
-            print(f"Unknown encoding {codeBody['encoding']}")
-
-        code = base64.b64decode(codeBody["content"]).decode()
         currentItem = (i + 1) + start
         repoName = item["repository"]["full_name"]
         filePath = item["path"]
         link = item["html_url"]
 
+        filterItem = False
+        for pfilter in args.filter_path:
+            if pfilter in filePath:
+                filterItem = True
+                break
+        if filterItem:
+            continue
+
+        codeBody = http_client.get(item["git_url"]).json()
+
+        if codeBody["encoding"] != "base64":
+            print(f"Unknown encoding {codeBody['encoding']}")
+
+        code = base64.b64decode(codeBody["content"]).decode()
+
         if mode == "output":
-            if "outDir" not in args:
+            if args.out_dir is None:
                 return print("Must supply a directory path with --outDir=<DIR_PATH>")
 
-            if args["outDir"][-1] != "/":
-                args["outDir"] += "/"
+            if args.out_dir[-1] != "/":
+                args.out_dir += "/"
 
-            outputFile: str = args["outDir"] + repoName + "/" + filePath
+            outputFile: str = args.out_dir + repoName + "/" + filePath
             path = Path("/".join(outputFile.split("/")[:-1]))
             path.mkdir(parents=True, exist_ok=True)
 
