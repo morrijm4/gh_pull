@@ -6,16 +6,15 @@ E = TypeVar("E")
 
 class Result(Generic[T, E]):
     def __init__(self, data: Optional[T] = None, error: Optional[E] = None) -> None:
-        assert (data and not error) or (not data and error)
         self.data = data
         self.error = error
 
     def unwrap(self) -> T:
-        assert self.data
+        assert self.data is not None
         return self.data
 
     def unwrap_err(self) -> E:
-        assert self.error
+        assert self.error is not None
         return self.error
 
     def ok(self) -> Optional[T]:
@@ -32,10 +31,10 @@ class Result(Generic[T, E]):
 
 
 class Ok(Result[T, E]):
-    def __init__(self, data: T) -> None:
+    def __init__(self, data: T = None) -> None:
         super().__init__(data)
 
 
 class Err(Result[T, E]):
-    def __init__(self, error: E) -> None:
+    def __init__(self, error: E = None) -> None:
         super().__init__(error=error)

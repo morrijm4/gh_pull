@@ -12,6 +12,7 @@ class Args:
     per_page: int
     filter_path: list
     out_dir: Optional[str] = None
+    interactive: bool = False
 
 
 class ArgumentParser:
@@ -38,6 +39,7 @@ class ArgumentParser:
             per_page=int(self.last_or("per_page", 30)),
             filter_path=self.args["filterPath"],
             out_dir=self.last("outDir"),
+            interactive="i" in self.args,
         )
 
         return Ok(args)
@@ -47,3 +49,8 @@ class ArgumentParser:
 
     def last_or(self, key: str, default):
         return self.last(key) if key in self.args else default
+
+
+class Argable:
+    def __init__(self, args: Args) -> None:
+        self.args = args
