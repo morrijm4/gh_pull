@@ -1,5 +1,7 @@
-from typing import Union
-from ..clients.github import CodeSearchItem
+from threading import Thread
+from queue import Queue
+from typing import Union, Optional
+from .search_item import SearchItem
 from ..utils.args import Args
 from ..utils.result import Result, Ok, Err
 from ..sinks.sink import Sink
@@ -20,27 +22,32 @@ class SearchEngine:
         if len(self.sinks) == 0:
             return Err("Please provide a sink")
 
-        samples: list[tuple[CodeSearchItem, str]] = []
-
-        for src in self.sources:
-            res = src.read()
-
-            if res.good():
-                samples = [
-                    (item, code)
-                    for item, code in res.unwrap()
-                    if all([f.filter(code).unwrap() for f in self.code_filters])
-                ]
-            else:
-                print(res.unwrap_err())
-        print(len(samples))
+        source_threads: list[Thread] = []
+        sink_threads: list[Thread] = []
+        queues: list[Queue[Optional[tuple[SearchItem, str]]]] = []
 
         for sink in self.sinks:
-            for i, sample in enumerate(samples):
-                res = sink.write(*sample, i)
+            q = Queue(maxsize=10)
+            queues.append(q)
+            t = Thread(target=consumer, args=(sink, q), daemon=True)
+            t.start()
+            sink_threads.append(t)
 
-                if res.bad():
-                    print(res.unwrap_err())
+        for src in self.sources:
+            t = Thread(
+                target=producer, args=(src, queues, self.code_filters), daemon=True
+            )
+            t.start()
+            source_threads.append(t)
+
+        for t in source_threads:
+            t.join()
+
+        for q in queues:
+            q.put(None)
+
+        for t in sink_threads:
+            t.join()
 
         return Ok()
 
@@ -55,3 +62,47 @@ class SearchEngine:
     def add_code_filter(self, f: Union[type[CodeFilter], CodeFilter]):
         self.code_filters.append(f if isinstance(f, CodeFilter) else f(self.args))
         return self
+
+
+def producer(
+    src: Source,
+    queues: list[Queue],
+    filters: list[CodeFilter],
+):
+    for res in src.read():
+        if res.bad():
+            print(res.unwrap_err())
+            break
+
+        item, code = res.unwrap()
+
+        def is_valid() -> bool:
+            for f in filters:
+                res = f.filter(code)
+
+                if res.bad():
+                    print(res.unwrap_err())
+                    return False
+
+                if not res.unwrap():
+                    return False
+
+            return True
+
+        if not is_valid():
+            continue
+
+        for q in queues:
+            q.put((item, code))
+
+
+def consumer(sink: Sink, q: Queue):
+    while True:
+        item = q.get()
+        if item is None:
+            break
+
+        try:
+            sink.write(*item)
+        except Exception as e:
+            print(e)

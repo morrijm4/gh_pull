@@ -3,8 +3,7 @@ from .utils.args import ArgumentParser
 from .utils.load_dotenv import load_dotenv
 from .sources.github import GitHubSource
 from .sinks.directory import DirectorySink
-from .sinks.interactive import InteractiveSink
-from .filters.item.path import PathItemFilter
+from .filters.item.path_dedup import PathDedupFilter
 from .filters.code.treesitter import TreesitterCodeFilter
 
 
@@ -20,15 +19,13 @@ def main():
     engine = SearchEngine(args)
 
     gh = GitHubSource(args)
-    gh.add_item_filter(PathItemFilter)
+    gh.add_item_filter(PathDedupFilter)
 
     engine.add_source(gh)
     engine.add_code_filter(TreesitterCodeFilter)
 
     if args.out_dir:
         engine.add_sink(DirectorySink)
-    if args.interactive:
-        engine.add_sink(InteractiveSink)
 
     res = engine.run()
 

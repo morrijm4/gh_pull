@@ -12,7 +12,7 @@ class TreesitterCodeFilter(CodeFilter):
         self.parser = Parser(self.lang)
         self.query = Query(
             self.lang,
-            """
+            f"""
             (function_definition
                 type: (primitive_type)
 
@@ -31,7 +31,7 @@ class TreesitterCodeFilter(CodeFilter):
                         (call_expression
                             function: (identifier) @called
                             (#any-of? @called 
-                                "_pdep_u64"
+                                {self.build_intrinsic_list()}
                             )
                         )
                     )
@@ -45,3 +45,6 @@ class TreesitterCodeFilter(CodeFilter):
         cursor = QueryCursor(self.query)
         captures = cursor.captures(tree.root_node)
         return Ok("functions" in captures)
+
+    def build_intrinsic_list(self) -> str:
+        return "".join(f'"{intrin}"\n' for intrin in self.args.intrinsics)

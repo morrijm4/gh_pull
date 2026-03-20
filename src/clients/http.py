@@ -1,7 +1,10 @@
 import json
+import time
 from dataclasses import dataclass, field
 from typing import Optional
+from urllib.error import HTTPError
 from urllib.request import urlopen, Request
+from datetime import datetime, timezone
 
 
 class HTTPResponse:
@@ -58,8 +61,27 @@ class HTTPClient:
             data=body,
         )
 
-        with urlopen(req) as res:
-            return HTTPResponse(res.read())
+        retires = 0
+
+        while True:
+            try:
+                with urlopen(req) as res:
+                    return HTTPResponse(res.read())
+            except HTTPError as e:
+                if retires >= 3:
+                    print(e.headers)
+                    raise e
+
+                retires += 1
+
+                epoch_utc = int(e.headers["x-ratelimit-reset"])
+                wait_until = datetime.fromtimestamp(epoch_utc, timezone.utc)
+
+                delay = (wait_until - datetime.now(timezone.utc)).total_seconds() + 2
+
+                print(f"Rate limited {retires}, {delay}")
+                if delay > 0:
+                    time.sleep(delay)
 
     def get(
         self,

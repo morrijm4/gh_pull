@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import Iterable
 from ..utils.args import Args
 from ..utils.result import Result
-from ..clients.github import CodeSearchItem
+from ..engine.search_item import SearchItem
 
 
 class Source(ABC):
@@ -9,9 +10,5 @@ class Source(ABC):
         self.args = args
 
     @abstractmethod
-    def read(self) -> Result[list[tuple[CodeSearchItem, str]], str]:
+    def read(self) -> Iterable[Result[tuple[SearchItem, str], str]]:
         raise RuntimeError("Not implimented")
-
-    @abstractmethod
-    def show(self) -> None:
-        pass

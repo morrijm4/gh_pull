@@ -1,4 +1,5 @@
 import sys
+import csv
 from collections import defaultdict
 from dataclasses import dataclass
 from .result import Ok, Err, Result
@@ -7,12 +8,12 @@ from typing import Optional
 
 @dataclass
 class Args:
+    intrinsics: list[str]
     query: str
     page: int
     per_page: int
     filter_path: list
     out_dir: Optional[str] = None
-    interactive: bool = False
 
 
 class ArgumentParser:
@@ -30,16 +31,28 @@ class ArgumentParser:
         pass
 
     def parse(self) -> Result[Args, str]:
-        if "query" not in self.args or self.args["query"] is None:
-            return Err("No query provided with the --query=<QUERY> flag")
+        intrinsics = self.args["intrinsic"]
+
+        if "intrinsic_csv_path" in self.args:
+            path = self.last("intrinsic_csv_path")
+
+            with open(path, mode="r", encoding="utf-8") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    intrinsics.append(row["name"])
+
+        if len(intrinsics) == 0:
+            return Err(
+                "No intrinsics provided. Try the --intrinsic=<STRING> argument or --intrinsic_csv_path=<STRING>"
+            )
 
         args = Args(
+            intrinsics=intrinsics,
             query="+".join(self.args["query"]),
             page=int(self.last_or("page", 1)),
             per_page=int(self.last_or("per_page", 30)),
             filter_path=self.args["filterPath"],
             out_dir=self.last("outDir"),
-            interactive="i" in self.args,
         )
 
         return Ok(args)
