@@ -1,6 +1,9 @@
 import json
+import random
+import time
 from dataclasses import dataclass, field
 from typing import Optional
+from urllib.error import HTTPError
 from urllib.request import urlopen, Request
 
 
@@ -25,6 +28,9 @@ class RequestOptions:
 
 
 class HTTPClient:
+    MAX_5XX_RETRIES = 3
+    INITIAL_RETRY_DELAY_SECONDS = 1.0
+
     def __init__(
         self, base_url: Optional[str] = None, base_headers: Optional[dict] = None
     ) -> None:
@@ -57,8 +63,28 @@ class HTTPClient:
             headers=_headers,
             data=body,
         )
-        with urlopen(req) as res:
-            return HTTPResponse(res.read())
+
+        retries = 0
+        while True:
+            try:
+                with urlopen(req) as res:
+                    return HTTPResponse(res.read())
+            except HTTPError as error:
+                if not self._is_retryable_5xx(error):
+                    raise error
+
+                if retries >= self.MAX_5XX_RETRIES:
+                    raise error
+
+                time.sleep(self._retry_delay_seconds(retries))
+                retries += 1
+
+    def _is_retryable_5xx(self, error: HTTPError) -> bool:
+        return 500 <= error.code <= 599
+
+    def _retry_delay_seconds(self, retries: int) -> float:
+        base_delay = self.INITIAL_RETRY_DELAY_SECONDS * (2**retries)
+        return random.uniform(0, base_delay)
 
     def get(
         self,

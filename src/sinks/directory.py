@@ -16,7 +16,7 @@ class DirectorySink(Sink):
             self.args.out_dir
             + item.name
             + "/"
-            + item.gh["repository"]["name"]
+            + item.gh["repository"]["full_name"]
             + "/"
             + item.gh["path"]
         )
