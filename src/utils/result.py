@@ -29,6 +29,12 @@ class Result(Generic[T, E]):
     def bad(self) -> bool:
         return self.error is not None
 
+    def __repr__(self) -> str:
+        if self.good():
+            return f"Ok({self.data})"
+        else:
+            return f"Err({self.error})"
+
 
 class Ok(Result[T, E]):
     def __init__(self, data: T = None) -> None:

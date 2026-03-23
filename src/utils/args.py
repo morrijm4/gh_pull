@@ -47,7 +47,7 @@ class ArgumentParser:
             )
 
         args = Args(
-            intrinsics=intrinsics,
+            intrinsics=["_mm_aesenc_si128"],
             query="+".join(self.args["query"]),
             page=int(self.last_or("page", 1)),
             per_page=int(self.last_or("per_page", 30)),

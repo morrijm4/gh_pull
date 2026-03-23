@@ -78,7 +78,7 @@ def producer(
 
         def is_valid() -> bool:
             for f in filters:
-                res = f.filter(code)
+                res = f.filter(code, item)
 
                 if res.bad():
                     print(res.unwrap_err())

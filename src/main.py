@@ -3,6 +3,7 @@ from .utils.args import ArgumentParser
 from .utils.load_dotenv import load_dotenv
 from .sources.github import GitHubSource
 from .sinks.directory import DirectorySink
+from .filters.code.content_hash import ContentHashCodeFilter
 from .filters.item.path_dedup import PathDedupFilter
 from .filters.code.treesitter import TreesitterCodeFilter
 
@@ -23,6 +24,7 @@ def main():
 
     engine.add_source(gh)
     engine.add_code_filter(TreesitterCodeFilter)
+    engine.add_code_filter(ContentHashCodeFilter)
 
     if args.out_dir:
         engine.add_sink(DirectorySink)

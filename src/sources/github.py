@@ -11,6 +11,8 @@ from ..filters.item.item_filter import ItemFilter
 
 
 class GitHubSource(Source):
+    SEARCH_RESULTS_CAP = 1000
+
     def __init__(
         self,
         args: Args,
@@ -35,11 +37,18 @@ class GitHubSource(Source):
         i = 0
         j = 0
         page = self.args.page
-        per_page = self.args.per_page
+        per_page = min(self.args.per_page, 100)
+        max_page = ((self.SEARCH_RESULTS_CAP - 1) // per_page) + 1
 
         print(f"Fetching code for {intrinsic}")
 
         while True:
+            if page > max_page:
+                print(
+                    f"Stopped at GitHub code search limit of {self.SEARCH_RESULTS_CAP} results"
+                )
+                break
+
             print(f"{(page - 1) * per_page}..{(page - 1) * per_page + per_page}")
             result = self.gh.code_search(f"{intrinsic}+language:c", page, per_page)
 
@@ -66,7 +75,7 @@ class GitHubSource(Source):
             i += len(result["items"])
             j += len(samples)
 
-            if i >= result["total_count"]:
+            if i >= min(result["total_count"], self.SEARCH_RESULTS_CAP):
                 break
 
             page += 1
