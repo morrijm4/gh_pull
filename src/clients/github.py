@@ -42,7 +42,7 @@ class CodeSearchResponse(TypedDict):
 class GitHubClient:
     MAX_RATE_LIMIT_RETRIES = 3
 
-    def __init__(self, bearer=os.getenv("GITHUB_TOKEN")) -> None:
+    def __init__(self, bearer=os.environ["GITHUB_TOKEN"]) -> None:
         if bearer is None:
             raise RuntimeError("GITHUB_TOKEN is not set")
 
@@ -115,6 +115,4 @@ class GitHubClient:
             return 60.0
 
         wait_until = datetime.fromtimestamp(int(reset_at), timezone.utc)
-        return max(
-            0.0, (wait_until - datetime.now(timezone.utc)).total_seconds() + 2
-        )
+        return max(0.0, (wait_until - datetime.now(timezone.utc)).total_seconds() + 2)
