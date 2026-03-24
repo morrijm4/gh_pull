@@ -42,9 +42,9 @@ class CodeSearchResponse(TypedDict):
 class GitHubClient:
     MAX_RATE_LIMIT_RETRIES = 3
 
-    def __init__(self, bearer=os.environ["GITHUB_TOKEN"]) -> None:
+    def __init__(self, bearer) -> None:
         if bearer is None:
-            raise RuntimeError("GITHUB_TOKEN is not set")
+            bearer = os.environ["GITHUB_TOKEN"]
 
         self.http = HTTPClient(
             "https://api.github.com",
