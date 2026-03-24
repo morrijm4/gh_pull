@@ -42,7 +42,7 @@ class CodeSearchResponse(TypedDict):
 class GitHubClient:
     MAX_RATE_LIMIT_RETRIES = 3
 
-    def __init__(self, bearer) -> None:
+    def __init__(self, bearer=None) -> None:
         if bearer is None:
             bearer = os.environ["GITHUB_TOKEN"]
 
