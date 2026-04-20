@@ -49,8 +49,10 @@ class GitHubSource(Source):
                 )
                 break
 
-            print(f"{(page - 1) * per_page}..{(page - 1) * per_page + per_page}")
             result = self.gh.code_search(f"{intrinsic}+language:c", page, per_page)
+            print(
+                f"{(page - 1) * per_page}..{(page - 1) * per_page + per_page}. Total count {result['total_count']}"
+            )
 
             samples: list[Result[tuple[SearchItem, str], str]] = []
             for gh in result["items"]:
