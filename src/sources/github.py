@@ -1,5 +1,6 @@
 import base64
 from typing import Iterable, Optional
+from urllib.error import HTTPError
 
 from .source import Source
 from ..clients.http import HTTPClient
@@ -35,7 +36,7 @@ class GitHubSource(Source):
         self, intrinsic: str
     ) -> Iterable[Result[tuple[SearchItem, str], str]]:
         i = 0
-        j = 0
+        total_processed_items = 0
         page = self.args.page
         per_page = min(self.args.per_page, 100)
         max_page = ((self.SEARCH_RESULTS_CAP - 1) // per_page) + 1
@@ -49,9 +50,17 @@ class GitHubSource(Source):
                 )
                 break
 
-            result = self.gh.code_search(f"{intrinsic}+language:c", page, per_page)
+            try:
+                result = self.gh.code_search(f"{intrinsic}+language:c", page, per_page)
+            except HTTPError as e:
+                if e.code != 404:
+                    raise e
+
+                print("404 Not Found HTTP Error")
+                break
+
             print(
-                f"{(page - 1) * per_page}..{(page - 1) * per_page + per_page}. Total count {result['total_count']}"
+                f"{(page - 1) * per_page}..{(page - 1) * per_page + per_page}  Total count {result['total_count']}"
             )
 
             samples: list[Result[tuple[SearchItem, str], str]] = []
@@ -75,14 +84,14 @@ class GitHubSource(Source):
                 yield s
 
             i += len(result["items"])
-            j += len(samples)
+            total_processed_items += len(samples)
 
             if i >= min(result["total_count"], self.SEARCH_RESULTS_CAP):
                 break
 
             page += 1
 
-        print(f"Proccessed {j} items")
+        print(f"Proccessed {total_processed_items} items")
 
     def add_item_filter(self, item_filter: type[ItemFilter]):
         self.item_filters.append(item_filter(self.args))
