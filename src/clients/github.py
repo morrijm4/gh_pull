@@ -80,7 +80,7 @@ class GitHubClient:
             try:
                 return self.http.get(url, query_params=query_params)
             except HTTPError as error:
-                if not self._is_rate_limited(error):
+                if not self._is_rate_limited(error) and not self._is_timeout(error):
                     raise error
 
                 if retries >= self.MAX_RATE_LIMIT_RETRIES:
@@ -91,8 +91,11 @@ class GitHubClient:
                 delay = self._rate_limit_delay_seconds(error)
                 print(f"Rate limited {retries}, {delay}")
 
-                if delay > 0:
+                if delay > 0 and not self._is_timeout(error):
                     time.sleep(delay)
+
+    def _is_timeout(self, error: HTTPError) -> bool:
+        return error.code == 408
 
     def _is_rate_limited(self, error: HTTPError) -> bool:
         if error.code == 429:
